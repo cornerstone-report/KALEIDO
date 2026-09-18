@@ -55,7 +55,7 @@ export const defaultChordLattice = (): DihedralFieldConfig => ({
   curvature: 0.2,
   transitionSeconds: 5,
   ribbonWidth: 0.00115,
-  apertureMask: "figure8",
+  apertureMask: "string",
 });
 
 export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
