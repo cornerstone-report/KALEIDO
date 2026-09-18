@@ -27,9 +27,10 @@ export const SettingsPanel = ({ preset, collapsed, onCollapsedChange, onPresetCh
       global: lattice ? {
         ...global,
         background: [0, 0, 0],
-        inkIntensity: 0.9,
-        paletteBands: 4,
+        inkIntensity: 0.92,
+        paletteBands: 5,
         feedback: { ...global.feedback, enabled: false, decayPerSecond: 4.5 },
+        evolution: { ...global.evolution, enabled: false },
       } : global,
     });
   };
@@ -69,10 +70,16 @@ export const SettingsPanel = ({ preset, collapsed, onCollapsedChange, onPresetCh
             <input type="range" min="1" max="6" step="1" value={scene.layerCount} onChange={(event) => updateScene({ layerCount: number(event) })} />
           </label>
           <label className="control">Chords / layer <output>{scene.chordsPerLayer}</output>
-            <input type="range" min="8" max="96" step="1" value={scene.chordsPerLayer} onChange={(event) => updateScene({ chordsPerLayer: number(event) })} />
+            <input type="range" min="8" max="160" step="1" value={scene.chordsPerLayer} onChange={(event) => updateScene({ chordsPerLayer: number(event) })} />
+          </label>
+          <label className="control">Chord skip <output>{scene.chordSkip}</output>
+            <input type="range" min="1" max="48" step="1" value={scene.chordSkip} onChange={(event) => updateScene({ chordSkip: number(event) })} />
+          </label>
+          <label className="control">Trail stamps <output>{scene.trailGenerations}</output>
+            <input type="range" min="1" max="12" step="1" value={scene.trailGenerations} onChange={(event) => updateScene({ trailGenerations: number(event) })} />
           </label>
           <label className="control">Center aperture <output>{scene.aperture.toFixed(2)}</output>
-            <input type="range" min="0.08" max="0.70" step="0.01" value={scene.aperture} onChange={(event) => updateScene({ aperture: number(event) })} />
+            <input type="range" min="0" max="0.70" step="0.01" value={scene.aperture} onChange={(event) => updateScene({ aperture: number(event) })} />
           </label>
           <label className="control">Ring span <output>{scene.ringWidth.toFixed(2)}</output>
             <input type="range" min="0.12" max="0.82" step="0.01" value={scene.ringWidth} onChange={(event) => updateScene({ ringWidth: number(event) })} />
