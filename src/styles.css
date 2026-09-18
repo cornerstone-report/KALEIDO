@@ -39,3 +39,5 @@ select { padding: .48rem .55rem; border: 1px solid #36334d; border-radius: .4rem
 @media (max-width: 840px) {
   .panel { width: min(340px, calc(100% - 1rem)); }
 }
+
+.hint { margin: -.4rem 0 1rem; color: #8f8aa6; font-size: .68rem; line-height: 1.35; }
