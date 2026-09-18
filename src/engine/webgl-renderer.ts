@@ -16,13 +16,14 @@ const VERTEX = `#version 300 es
 in vec2 aCorner;
 in vec4 aStroke;
 in vec2 aShape;
+uniform vec2 uContain;
 out float vEdge;
 out float vInk;
 void main() {
   vec2 direction = vec2(cos(aStroke.z), sin(aStroke.z));
   vec2 normal = vec2(-direction.y, direction.x);
   vec2 position = aStroke.xy + direction * aCorner.x * aShape.x + normal * aCorner.y * aShape.y;
-  gl_Position = vec4(position, 0.0, 1.0);
+  gl_Position = vec4(position * uContain, 0.0, 1.0);
   vEdge = aCorner.y;
   vInk = aStroke.w;
 }`;
@@ -36,8 +37,9 @@ in float vEdge;
 in float vInk;
 out vec4 outColor;
 void main() {
-  float alpha = 1.0 - smoothstep(0.72, 1.0, abs(vEdge));
-  float paletteIndex = floor(fract(vInk) * uPaletteBands) / uPaletteBands;
+  float alpha = 1.0 - smoothstep(0.78, 1.0, abs(vEdge));
+  float band = floor(fract(vInk) * max(uPaletteBands, 1.0) + 1e-5);
+  float paletteIndex = (band + 0.5) / max(uPaletteBands, 1.0);
   vec3 color = texture(uPalette, vec2(paletteIndex, 0.5)).rgb;
   outColor = vec4(color, alpha * uIntensity);
 }`;
@@ -64,10 +66,10 @@ void main() {
 }`;
 
 const PALETTES: Record<PaletteId, readonly (readonly [number, number, number])[]> = {
-  aurora: [[0.04, 0.98, 0.9], [0.15, 0.38, 1], [0.94, 0.25, 0.94], [1, 0.9, 0.3]],
-  ember: [[1, 0.27, 0.09], [1, 0.68, 0.13], [0.95, 0.08, 0.42], [1, 0.92, 0.73]],
-  ultraviolet: [[0.63, 0.31, 1], [0.28, 0.77, 1], [1, 0.32, 0.84], [0.85, 0.93, 1]],
-  mineral: [[0.49, 0.95, 0.65], [0.15, 0.65, 0.75], [0.99, 0.79, 0.36], [0.96, 0.4, 0.38]],
+  aurora: [[0.05, 0.95, 0.88], [0.18, 0.42, 1], [0.95, 0.22, 0.92], [1, 0.86, 0.28], [0.95, 0.95, 0.98]],
+  ember: [[1, 0.2, 0.08], [1, 0.62, 0.12], [0.92, 0.08, 0.38], [1, 0.9, 0.7], [0.55, 0.08, 0.08]],
+  ultraviolet: [[0.55, 0.22, 1], [0.22, 0.72, 1], [1, 0.28, 0.82], [0.82, 0.9, 1], [0.12, 0.95, 0.42]],
+  mineral: [[0.42, 0.95, 0.55], [0.12, 0.62, 0.7], [0.98, 0.76, 0.28], [0.95, 0.35, 0.32], [0.9, 0.95, 0.55]],
 };
 
 const compile = (gl: WebGL2RenderingContext, type: number, source: string): WebGLShader => {
@@ -114,6 +116,7 @@ export class WebglRenderer {
   private cssWidth = 0;
   private cssHeight = 0;
   private dpr = 1;
+  private contain: [number, number] = [0.92, 0.92];
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const sceneProgram = program(gl, VERTEX, FRAGMENT);
@@ -155,8 +158,6 @@ export class WebglRenderer {
     gl.vertexAttribDivisor(shapeLocation, 1);
     gl.bindVertexArray(null);
 
-    // The fullscreen composite gets its own VAO. Default-VAO state is easy to
-    // invalidate while switching between the instanced scene and FBO passes.
     gl.bindVertexArray(blitVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, cornerBuffer);
     const blitCornerLocation = gl.getAttribLocation(blitProgram, "aCorner");
@@ -165,8 +166,8 @@ export class WebglRenderer {
     gl.bindVertexArray(null);
 
     gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.setPalette("aurora");
@@ -176,12 +177,11 @@ export class WebglRenderer {
     const stops = PALETTES[palette];
     const pixels = new Uint8Array(256 * 4);
     for (let index = 0; index < 256; index += 1) {
-      const scaled = (index / 255) * stops.length;
-      const start = stops[Math.floor(scaled) % stops.length];
-      const end = stops[(Math.floor(scaled) + 1) % stops.length];
-      const weight = scaled - Math.floor(scaled);
+      const stop = stops[Math.floor((index / 256) * stops.length) % stops.length];
       const pixel = index * 4;
-      for (let channel = 0; channel < 3; channel += 1) pixels[pixel + channel] = Math.round((start[channel] * (1 - weight) + end[channel] * weight) * 255);
+      pixels[pixel] = Math.round(stop[0] * 255);
+      pixels[pixel + 1] = Math.round(stop[1] * 255);
+      pixels[pixel + 2] = Math.round(stop[2] * 255);
       pixels[pixel + 3] = 255;
     }
     const { gl } = this;
@@ -194,6 +194,9 @@ export class WebglRenderer {
     this.cssWidth = cssWidth;
     this.cssHeight = cssHeight;
     this.dpr = dpr;
+    const fit = 0.92;
+    const aspect = cssWidth / cssHeight;
+    this.contain = aspect >= 1 ? [fit / aspect, fit] : [fit, fit * aspect];
     const hardwareLimit = Math.min(this.capabilities.maxTextureSize, this.capabilities.maxRenderbufferSize);
     const requestedWidth = Math.max(1, Math.floor(cssWidth * dpr * scale));
     const requestedHeight = Math.max(1, Math.floor(cssHeight * dpr * scale));
@@ -263,6 +266,7 @@ export class WebglRenderer {
     gl.uniform1i(gl.getUniformLocation(this.sceneProgram, "uPalette"), 0);
     gl.uniform1f(gl.getUniformLocation(this.sceneProgram, "uIntensity"), config.inkIntensity);
     gl.uniform1f(gl.getUniformLocation(this.sceneProgram, "uPaletteBands"), config.paletteBands);
+    gl.uniform2f(gl.getUniformLocation(this.sceneProgram, "uContain"), this.contain[0], this.contain[1]);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instances.count);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
