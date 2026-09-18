@@ -1,7 +1,7 @@
 import type { DihedralFieldConfig } from "../config/types";
 import { createPrng } from "../math/prng";
 
-const LAYER_STRIDE = 4; // phase, radial offset, angular offset, ink band
+const LAYER_STRIDE = 4; // phase, skip jitter, ink band, reserved
 const INSTANCE_STRIDE = 6; // x, y, heading, ink, half length, thickness
 const TAU = Math.PI * 2;
 
@@ -9,6 +9,8 @@ export interface ChordLatticeState {
   layers: Float32Array;
   elapsed: number;
   palettePhase: number;
+  injectCarry: number;
+  stampPhases: Float32Array;
 }
 
 export interface ChordLatticeInstances {
@@ -16,81 +18,124 @@ export interface ChordLatticeInstances {
   count: number;
 }
 
-/**
- * Generates ruled surfaces from pairs of evolving polar orbits. The GPU only
- * draws the resulting hairline quads; all visual structure stays seedable.
- */
+const skipForLayer = (config: DihedralFieldConfig, layer: number): number => {
+  const points = Math.max(3, config.chordsPerLayer);
+  const raw = Math.round(config.chordSkip + layer * 3);
+  return Math.max(1, Math.min(points - 1, raw));
+};
+
 export const initializeChordLattice = (seed: number, config: DihedralFieldConfig): ChordLatticeState => {
   const random = createPrng(seed ^ 0x4c415454);
   const layers = new Float32Array(config.layerCount * LAYER_STRIDE);
   for (let layer = 0; layer < config.layerCount; layer += 1) {
     const offset = layer * LAYER_STRIDE;
     layers[offset] = random() * TAU;
-    layers[offset + 1] = (random() * 2 - 1) * 0.035;
-    layers[offset + 2] = (random() * 2 - 1) * 0.06;
-    layers[offset + 3] = layer / Math.max(1, config.layerCount - 1);
+    layers[offset + 1] = Math.floor(random() * 3);
+    layers[offset + 2] = config.layerCount <= 1 ? 0 : layer / (config.layerCount - 1);
+    layers[offset + 3] = 0;
   }
-  return { layers, elapsed: 0, palettePhase: 0 };
+  const stamps = Math.max(1, config.trailGenerations);
+  const stampPhases = new Float32Array(stamps);
+  return { layers, elapsed: 0, palettePhase: 0, injectCarry: 0, stampPhases };
 };
 
 export const updateChordLattice = (state: ChordLatticeState, dt: number, config: DihedralFieldConfig, paletteSpeed: number): void => {
   state.elapsed += dt;
   state.palettePhase = (state.palettePhase + dt * paletteSpeed) % 1;
+  const interval = 0.055 + (1 - Math.min(1, config.speed)) * 0.09;
+  state.injectCarry += dt;
+  while (state.injectCarry >= interval) {
+    state.injectCarry -= interval;
+    for (let index = state.stampPhases.length - 1; index > 0; index -= 1) {
+      state.stampPhases[index] = state.stampPhases[index - 1];
+    }
+    state.stampPhases[0] += TAU / Math.max(24, config.chordsPerLayer);
+  }
   for (let layer = 0; layer < config.layerCount; layer += 1) {
-    const offset = layer * LAYER_STRIDE;
-    state.layers[offset] += dt * config.speed * (0.38 + layer * 0.15);
+    state.layers[layer * LAYER_STRIDE] += dt * config.spin;
   }
 };
 
 const polar = (radius: number, angle: number): readonly [number, number] => [Math.cos(angle) * radius, Math.sin(angle) * radius];
 
+const writeStroke = (
+  data: Float32Array<ArrayBufferLike>,
+  write: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  ink: number,
+  width: number,
+): number => {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  data[write] = (x0 + x1) * 0.5;
+  data[write + 1] = (y0 + y1) * 0.5;
+  data[write + 2] = Math.atan2(dy, dx);
+  data[write + 3] = ink;
+  data[write + 4] = Math.max(0.0012, Math.hypot(dx, dy) * 0.5);
+  data[write + 5] = width;
+  return write + INSTANCE_STRIDE;
+};
+
+export const expectedChordLatticeCount = (config: DihedralFieldConfig): number => {
+  const generations = Math.max(1, config.trailGenerations);
+  return config.layerCount * config.chordsPerLayer * generations + config.foldOrder * (config.chordsPerLayer + 1);
+};
+
+/**
+ * Full-circle string-art per radial layer, plus an outer fan ring.
+ * Geometry is circular in unit space; the renderer applies aspect contain.
+ */
 export const buildChordLatticeInstances = (
   state: ChordLatticeState,
   config: DihedralFieldConfig,
   target?: Float32Array<ArrayBufferLike>,
 ): ChordLatticeInstances => {
-  const copies = config.foldOrder * (config.mirror ? 2 : 1);
-  const total = config.layerCount * config.chordsPerLayer * copies;
+  const generations = Math.max(1, config.trailGenerations);
+  const total = expectedChordLatticeCount(config);
   const data = target && target.length >= total * INSTANCE_STRIDE ? target : new Float32Array(total * INSTANCE_STRIDE);
-  const wedge = TAU / config.foldOrder;
   let write = 0;
+  const spin = state.elapsed * config.spin;
 
-  for (let fold = 0; fold < config.foldOrder; fold += 1) {
-    const rotation = fold * wedge + state.elapsed * config.spin;
+  for (let generation = 0; generation < generations; generation += 1) {
+    const stamp = state.stampPhases[Math.min(generation, state.stampPhases.length - 1)] ?? 0;
+    const generationShift = generation * (TAU / Math.max(8, config.chordsPerLayer));
     for (let layer = 0; layer < config.layerCount; layer += 1) {
       const layerOffset = layer * LAYER_STRIDE;
-      const phase = state.layers[layerOffset];
-      const baseRadius = config.aperture + config.ringWidth * ((layer + 0.58) / config.layerCount) + state.layers[layerOffset + 1];
-      const amplitude = config.ringWidth * (0.14 + layer * 0.035);
-      for (let chord = 0; chord < config.chordsPerLayer; chord += 1) {
-        const t = config.chordsPerLayer === 1 ? 0.5 : chord / (config.chordsPerLayer - 1);
-        // Counter-moving endpoints make fans and mesh cells, not a continuous ribbon.
-        const leftAngle = wedge * (0.035 + t * 0.93) + state.layers[layerOffset + 2];
-        const rightAngle = wedge * (0.965 - t * 0.93) - state.layers[layerOffset + 2];
-        const wave = Math.sin(phase + t * TAU * (1.2 + layer * 0.35));
-        const crossWave = Math.cos(phase * 0.83 - t * TAU * (0.76 + layer * 0.21));
-        const [x0, y0] = polar(baseRadius + amplitude * wave, leftAngle);
-        const [x1, y1] = polar(baseRadius + amplitude * crossWave, rightAngle);
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-        const length = Math.hypot(dx, dy);
-        const x = (x0 + x1) * 0.5;
-        const y = (y0 + y1) * 0.5;
-        const heading = Math.atan2(dy, dx);
-        const ink = (state.layers[layerOffset + 3] * 0.72 + t * 0.28 + state.palettePhase) % 1;
-        const append = (mirror: boolean): void => {
-          data[write] = mirror ? -(x * Math.cos(rotation) - y * Math.sin(rotation)) : x * Math.cos(rotation) - y * Math.sin(rotation);
-          data[write + 1] = x * Math.sin(rotation) + y * Math.cos(rotation);
-          data[write + 2] = mirror ? Math.PI - (heading + rotation) : heading + rotation;
-          data[write + 3] = ink;
-          data[write + 4] = Math.max(0.0015, length * 0.5);
-          data[write + 5] = config.ribbonWidth;
-          write += INSTANCE_STRIDE;
-        };
-        append(false);
-        if (config.mirror) append(true);
+      const points = Math.max(3, config.chordsPerLayer);
+      const skip = skipForLayer(config, layer);
+      const inner = config.aperture + config.ringWidth * (layer / Math.max(1, config.layerCount));
+      const outer = config.aperture + config.ringWidth * ((layer + 1) / Math.max(1, config.layerCount));
+      const radius = (inner + outer) * 0.5;
+      const phase = state.layers[layerOffset] + stamp + generationShift + spin;
+      const ink = (state.layers[layerOffset + 2] + state.palettePhase) % 1;
+      for (let chord = 0; chord < points; chord += 1) {
+        const a0 = phase + (chord / points) * TAU;
+        const a1 = phase + ((chord + skip) / points) * TAU;
+        const [x0, y0] = polar(radius, a0);
+        const [x1, y1] = polar(radius, a1);
+        write = writeStroke(data, write, x0, y0, x1, y1, ink, config.ribbonWidth);
       }
     }
   }
+
+  const fanRadius = Math.min(0.98, config.aperture + config.ringWidth + 0.08);
+  const hubRadius = Math.max(config.aperture + config.ringWidth * 0.72, fanRadius * 0.74);
+  const fanCount = config.chordsPerLayer + 1;
+  for (let fold = 0; fold < config.foldOrder; fold += 1) {
+    const hubAngle = spin + (fold / config.foldOrder) * TAU;
+    const [hx, hy] = polar(fanRadius, hubAngle);
+    const spread = TAU / config.foldOrder;
+    const ink = (0.82 + state.palettePhase) % 1;
+    for (let spoke = 0; spoke < fanCount; spoke += 1) {
+      const t = fanCount === 1 ? 0.5 : spoke / (fanCount - 1);
+      const rimAngle = hubAngle + (t - 0.5) * spread * 0.92;
+      const [rx, ry] = polar(hubRadius, rimAngle);
+      write = writeStroke(data, write, hx, hy, rx, ry, ink, config.ribbonWidth);
+    }
+  }
+
   return { data, count: total };
 };

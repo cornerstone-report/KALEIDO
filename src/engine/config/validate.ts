@@ -22,9 +22,11 @@ export const clampDihedral = (value: Partial<DihedralFieldConfig>): DihedralFiel
     transitionSeconds: clamp(value.transitionSeconds, 3, 60, fallback.transitionSeconds),
     ribbonWidth: clamp(value.ribbonWidth, 0.001, 0.02, fallback.ribbonWidth),
     layerCount: Math.round(clamp(value.layerCount, 1, 6, fallback.layerCount)),
-    chordsPerLayer: Math.round(clamp(value.chordsPerLayer, 8, 96, fallback.chordsPerLayer)),
-    aperture: clamp(value.aperture, 0.08, 0.7, fallback.aperture),
+    chordsPerLayer: Math.round(clamp(value.chordsPerLayer, 8, 160, fallback.chordsPerLayer)),
+    aperture: clamp(value.aperture, 0, 0.7, fallback.aperture),
     ringWidth: clamp(value.ringWidth, 0.12, 0.82, fallback.ringWidth),
+    chordSkip: Math.round(clamp(value.chordSkip, 1, 64, fallback.chordSkip)),
+    trailGenerations: Math.round(clamp(value.trailGenerations, 1, 12, fallback.trailGenerations)),
   };
 };
 

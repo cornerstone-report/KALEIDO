@@ -1,33 +1,26 @@
 # Chord Lattice visual family
 
-Chord Lattice is an original KALEIDO visual family informed by the user-supplied
-comparison captures of a radial, late-90s line visualization. It does not
-recover or reproduce the original program's implementation.
+Chord Lattice is an original KALEIDO visual family informed by radial
+late-90s line visualizers. It does not recover or reproduce any original
+program's implementation.
 
 ## Visual contract
 
-- opaque black background and no feedback by default;
-- a configurable central aperture preserves negative space;
-- 1–6 independent radial layers use short, discrete palette bands;
-- every layer is a ruled surface: straight chords connect counter-moving polar
-  orbits inside a single symmetry wedge;
-- dihedral copies and optional mirrors expand that wedge into the full field;
-- the state is CPU-side typed arrays, seeded, and deterministic.
+- opaque black background and no framebuffer feedback by default
+- a configurable central aperture; set it to 0 to allow a filled core
+- 1–6 concentric string-art rings, each with a discrete palette band
+- every ring connects *N* points on a circle to point *i + k*
+- an outer fan ring, counted by fold order, forms petal envelopes
+- retained stamps (`trailGenerations`) are older rigid line-sets, not blur
+- the state is CPU-side typed arrays, seeded, and deterministic
+- the renderer applies aspect contain so the figure stays circular
 
-The renderer draws each chord as a very thin instanced quad. WebGL line width
-is intentionally not used because implementations commonly restrict it to a
-single device-dependent width. Shader edge smoothing keeps the thin strokes
-legible without turning them into luminous ribbons.
+The renderer draws each chord as a hairline instanced quad. WebGL line
+width is not used.
 
 ## Controls
 
-`Radial layers`, `Chords / layer`, `Center aperture`, and `Ring span` determine
-the static composition. `Orbit` and `Spin` only evolve the polar anchors; they
-do not alter symmetry, seed, or palette membership. Persistent trails remain an
-optional atmosphere setting, not part of the family definition.
-
-## Relationship to Line Weave
-
-Line Weave remains available as KALEIDO's expressive, continuous-ribbon
-family. Chord Lattice is deliberately separate so visual-reference work cannot
-erase the earlier instrument.
+`Radial layers`, `Chords / layer`, `Chord skip`, `Center aperture`, and
+`Ring span` set the static composition. `Orbit` advances the stamp clock.
+`Spin` rotates the rings. Persistent framebuffer trails remain optional
+atmosphere and are off in the default comparison preset.
