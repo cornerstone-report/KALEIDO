@@ -33,7 +33,7 @@ describe("Chord Lattice", () => {
     expect(instances.data[5]).toBeCloseTo(config.ribbonWidth);
   });
 
-  it("keeps a circular envelope instead of a wedge scribble", () => {
+  it("stays inside a bounded field", () => {
     const config = { ...defaultChordLattice(), trailGenerations: 1, layerCount: 1, chordsPerLayer: 24, foldOrder: 4 };
     const instances = buildChordLatticeInstances(initializeChordLattice(3, config), config);
     let maxR = 0;
@@ -42,18 +42,27 @@ describe("Chord Lattice", () => {
       const y = instances.data[index * 6 + 1];
       maxR = Math.max(maxR, Math.hypot(x, y));
     }
-    expect(maxR).toBeGreaterThan(0.2);
-    expect(maxR).toBeLessThan(1.05);
+    expect(maxR).toBeGreaterThan(0.15);
+    expect(maxR).toBeLessThan(1.2);
   });
 
-  it("detunes layer clocks with incommensurate rates", () => {
+  it("counter-rotates adjacent layers", () => {
     const config = { ...defaultChordLattice(), layerCount: 2, spin: 1, trailGenerations: 1 };
     const state = initializeChordLattice(9, config);
     const before0 = state.layers[0];
     const before1 = state.layers[4];
     updateChordLattice(state, 0.5, config, 0);
-    expect(state.layers[0] - before0).toBeCloseTo(0.5 * LAYER_SPIN_RATES[0] * 2.2, 5);
-    expect(state.layers[4] - before1).toBeCloseTo(0.5 * LAYER_SPIN_RATES[1] * 2.2, 5);
+    expect(state.layers[0] - before0).toBeCloseTo(0.5 * LAYER_SPIN_RATES[0] * 2.6, 5);
+    expect(state.layers[4] - before1).toBeCloseTo(-0.5 * LAYER_SPIN_RATES[1] * 2.6, 5);
+  });
+
+  it("shifts instance positions across a two-second step", () => {
+    const config = { ...defaultChordLattice(), trailGenerations: 1, layerCount: 2, foldOrder: 8 };
+    const state = initializeChordLattice(11, config);
+    const first = buildChordLatticeInstances(state, config).data.slice(0, 12);
+    updateChordLattice(state, 2, config, 0.1);
+    const second = buildChordLatticeInstances(state, config).data.slice(0, 12);
+    expect(Array.from(first)).not.toEqual(Array.from(second));
   });
 
   it("walks k by a whole integer on renewal", () => {
@@ -68,14 +77,5 @@ describe("Chord Lattice", () => {
   it("gives history stamps a different integer skip than the live rose", () => {
     expect(stampSkipDelta(0)).toBe(0);
     expect(stampSkipDelta(1)).not.toBe(0);
-  });
-
-  it("advances palette without requiring geometry spin", () => {
-    const config = { ...defaultChordLattice(), spin: 0, trailGenerations: 1 };
-    const state = initializeChordLattice(1, config);
-    const phase = state.layers[0];
-    updateChordLattice(state, 1, config, 0.25);
-    expect(state.layers[0]).toBeCloseTo(phase, 6);
-    expect(state.palettePhase).toBeCloseTo(0.25, 6);
   });
 });

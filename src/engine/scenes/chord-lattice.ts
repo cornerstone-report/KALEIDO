@@ -58,6 +58,8 @@ const layerRadius = (config: DihedralFieldConfig, layer: number): number => {
   return config.aperture + config.ringWidth * curve;
 };
 
+const layerSign = (layer: number): number => (layer % 2 === 0 ? 1 : -1);
+
 export const initializeChordLattice = (seed: number, config: DihedralFieldConfig): ChordLatticeState => {
   const random = createPrng(seed ^ 0x4c415454);
   const layers = new Float32Array(config.layerCount * LAYER_STRIDE);
@@ -93,7 +95,7 @@ export const updateChordLattice = (state: ChordLatticeState, dt: number, config:
   state.elapsed += dt;
   state.palettePhase = (state.palettePhase + dt * paletteSpeed) % 1;
 
-  const injectInterval = 0.035 + (1 - Math.min(1, config.speed)) * 0.05;
+  const injectInterval = 0.028 + (1 - Math.min(1, config.speed)) * 0.04;
   state.injectCarry += dt;
   while (state.injectCarry >= injectInterval) {
     state.injectCarry -= injectInterval;
@@ -105,7 +107,7 @@ export const updateChordLattice = (state: ChordLatticeState, dt: number, config:
       state.stamps[dest + 2] = state.stamps[src + 2];
       state.stamps[dest + 3] = state.stamps[src + 3];
     }
-    state.stamps[0] += TAU / Math.max(12, config.chordsPerLayer / 3);
+    state.stamps[0] += TAU / Math.max(8, config.chordsPerLayer / 4);
     state.stamps[1] = 0;
     state.stamps[2] = 0;
     state.stamps[3] = 1;
@@ -122,17 +124,15 @@ export const updateChordLattice = (state: ChordLatticeState, dt: number, config:
   if (state.renewCarry >= renewal) {
     state.renewCarry -= renewal;
     const points = Math.max(8, config.chordsPerLayer);
-    state.walkSkip = wrapSkip(state.walkSkip + state.walkSign * Math.max(1, Math.round(points / 18)), points);
-    if (state.walkSkip <= 1 || state.walkSkip >= points - 1) state.walkSign *= -1;
+    state.walkSkip = wrapSkip(state.walkSkip + state.walkSign * Math.max(2, Math.round(points / 14)), points);
+    if (state.walkSkip <= 2 || state.walkSkip >= points - 2) state.walkSign *= -1;
   }
 
   for (let layer = 0; layer < config.layerCount; layer += 1) {
     const rate = LAYER_SPIN_RATES[layer % LAYER_SPIN_RATES.length] ?? 1;
-    state.layers[layer * LAYER_STRIDE] += dt * config.spin * rate * 2.2;
+    state.layers[layer * LAYER_STRIDE] += dt * config.spin * rate * 2.6 * layerSign(layer);
   }
 };
-
-const polar = (radius: number, angle: number): readonly [number, number] => [Math.cos(angle) * radius, Math.sin(angle) * radius];
 
 const writeStroke = (
   data: Float32Array<ArrayBufferLike>,
@@ -173,6 +173,7 @@ export const buildChordLatticeInstances = (
   const total = expectedChordLatticeCount(config);
   const data = target && target.length >= total * INSTANCE_STRIDE ? target : new Float32Array(total * INSTANCE_STRIDE);
   let write = 0;
+  const petals = Math.max(2, config.foldOrder);
 
   for (let generation = 0; generation < generations; generation += 1) {
     const stampOffset = Math.min(generation, state.stamps.length / STAMP_STRIDE - 1) * STAMP_STRIDE;
@@ -184,15 +185,23 @@ export const buildChordLatticeInstances = (
       const layerOffset = layer * LAYER_STRIDE;
       const rate = LAYER_SPIN_RATES[layer % LAYER_SPIN_RATES.length] ?? 1;
       const skip = wrapSkip(skipForLayer(state.walkSkip, layer, points) + skipDelta, points);
-      const pulse = 1 + 0.045 * Math.sin(state.elapsed * (0.55 + rate) + layer * 1.2);
-      const radius = Math.min(0.98, layerRadius(config, layer) * radiusScale * pulse);
+      const pulse = 1 + 0.06 * Math.sin(state.elapsed * (0.7 + rate) + layer * 1.2);
+      const baseRadius = layerRadius(config, layer) * radiusScale * pulse;
+      const scallop = 0.11 + layer * 0.015;
+      const drift = 0.05 + layer * 0.012;
+      const cx = drift * Math.sin(state.elapsed * rate * 0.47 + layer * 1.7);
+      const cy = drift * Math.cos(state.elapsed * rate * 0.31 + layer * 2.3);
       const phase = state.layers[layerOffset] + stampPhase;
       const inkBase = (state.layers[layerOffset + 2] + state.palettePhase + generation * 0.13) % 1;
       for (let chord = 0; chord < points; chord += 1) {
         const a0 = phase + (chord / points) * TAU;
         const a1 = phase + ((chord + skip) / points) * TAU;
-        const [x0, y0] = polar(radius, a0);
-        const [x1, y1] = polar(radius, a1);
+        const r0 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a0)));
+        const r1 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a1)));
+        const x0 = cx + Math.cos(a0) * r0;
+        const y0 = cy + Math.sin(a0) * r0;
+        const x1 = cx + Math.cos(a1) * r1;
+        const y1 = cy + Math.sin(a1) * r1;
         const ink = (inkBase + (chord / points) * 0.18) % 1;
         write = writeStroke(data, write, x0, y0, x1, y1, ink, config.ribbonWidth);
       }
