@@ -1,4 +1,5 @@
 import type { GlobalConfig, PaletteId, RendererCapabilities } from "./config/types";
+import { circularFieldScale } from "./math/phi";
 interface StrokeInstances {
   data: Float32Array<ArrayBufferLike>;
   count: number;
@@ -116,7 +117,6 @@ export class WebglRenderer {
   private cssWidth = 0;
   private cssHeight = 0;
   private dpr = 1;
-  private contain: [number, number] = [0.92, 0.92];
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const sceneProgram = program(gl, VERTEX, FRAGMENT);
@@ -194,9 +194,6 @@ export class WebglRenderer {
     this.cssWidth = cssWidth;
     this.cssHeight = cssHeight;
     this.dpr = dpr;
-    const fit = 0.92;
-    const aspect = cssWidth / cssHeight;
-    this.contain = aspect >= 1 ? [fit / aspect, fit] : [fit, fit * aspect];
     const hardwareLimit = Math.min(this.capabilities.maxTextureSize, this.capabilities.maxRenderbufferSize);
     const requestedWidth = Math.max(1, Math.floor(cssWidth * dpr * scale));
     const requestedHeight = Math.max(1, Math.floor(cssHeight * dpr * scale));
@@ -266,7 +263,9 @@ export class WebglRenderer {
     gl.uniform1i(gl.getUniformLocation(this.sceneProgram, "uPalette"), 0);
     gl.uniform1f(gl.getUniformLocation(this.sceneProgram, "uIntensity"), config.inkIntensity);
     gl.uniform1f(gl.getUniformLocation(this.sceneProgram, "uPaletteBands"), config.paletteBands);
-    gl.uniform2f(gl.getUniformLocation(this.sceneProgram, "uContain"), this.contain[0], this.contain[1]);
+    const field = this.framebuffers;
+    const fit = circularFieldScale(field?.width ?? this.cssWidth, field?.height ?? this.cssHeight, config.fieldBleed);
+    gl.uniform2f(gl.getUniformLocation(this.sceneProgram, "uContain"), fit[0], fit[1]);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instances.count);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
