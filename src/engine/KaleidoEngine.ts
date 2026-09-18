@@ -63,8 +63,6 @@ export class KaleidoEngine {
     const cap = this.framePreset.global.quality.dprCap;
     const actualDpr = Math.min(Math.max(1, dpr), cap);
     this.resizeRenderer(actualDpr);
-    // A visible composition must not depend on the first RAF being scheduled.
-    // Browsers can throttle RAF before a newly-mounted tab receives focus.
     this.renderFrame(0);
   }
 
@@ -173,6 +171,8 @@ export class KaleidoEngine {
       || previous.scene.foldOrder !== this.framePreset.scene.foldOrder
       || previous.scene.layerCount !== this.framePreset.scene.layerCount
       || previous.scene.chordsPerLayer !== this.framePreset.scene.chordsPerLayer
+      || previous.scene.chordSkip !== this.framePreset.scene.chordSkip
+      || previous.scene.trailGenerations !== this.framePreset.scene.trailGenerations
     ) {
       this.state = this.initializeScene(this.framePreset.seed, this.framePreset.scene);
       this.scheduler = new EvolutionScheduler(this.framePreset.seed);
