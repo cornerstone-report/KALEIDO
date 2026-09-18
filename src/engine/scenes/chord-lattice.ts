@@ -1,7 +1,7 @@
 import type { DihedralFieldConfig } from "../config/types";
 import { createPrng } from "../math/prng";
 import { INV_PHI } from "../math/phi";
-import { clipSegmentToMask } from "../math/aperture-mask";
+import { maskRadius } from "../math/aperture-mask";
 
 const LAYER_STRIDE = 4;
 const INSTANCE_STRIDE = 6;
@@ -171,10 +171,11 @@ export const buildChordLatticeInstances = (
   target?: Float32Array<ArrayBufferLike>,
 ): ChordLatticeInstances => {
   const generations = Math.max(1, config.trailGenerations);
-  const total = expectedChordLatticeCount(config) * 3;
+  const total = expectedChordLatticeCount(config);
   const data = target && target.length >= total * INSTANCE_STRIDE ? target : new Float32Array(total * INSTANCE_STRIDE);
   let write = 0;
   const petals = Math.max(2, config.foldOrder);
+  const maskPhase = -state.elapsed * config.spin * 0.35;
 
   for (let generation = 0; generation < generations; generation += 1) {
     const stampOffset = Math.min(generation, state.stamps.length / STAMP_STRIDE - 1) * STAMP_STRIDE;
@@ -188,28 +189,26 @@ export const buildChordLatticeInstances = (
       const skip = wrapSkip(skipForLayer(state.walkSkip, layer, points) + skipDelta, points);
       const pulse = 1 + 0.06 * Math.sin(state.elapsed * (0.7 + rate) + layer * 1.2);
       const baseRadius = layerRadius(config, layer) * radiusScale * pulse;
-      const scallop = 0.11 + layer * 0.015;
-      const drift = 0.05 + layer * 0.012;
+      const scallop = config.apertureMask === "string" ? 0.11 + layer * 0.015 : 0.04;
+      const drift = config.apertureMask === "string" ? 0.05 + layer * 0.012 : 0.012;
       const cx = drift * Math.sin(state.elapsed * rate * 0.47 + layer * 1.7);
       const cy = drift * Math.cos(state.elapsed * rate * 0.31 + layer * 2.3);
       const phase = state.layers[layerOffset] + stampPhase;
       const inkBase = (state.layers[layerOffset + 2] + state.palettePhase + generation * 0.13) % 1;
-      const maskPhase = -state.elapsed * config.spin * 0.55;
       for (let chord = 0; chord < points; chord += 1) {
         const a0 = phase + (chord / points) * TAU;
         const a1 = phase + ((chord + skip) / points) * TAU;
-        const r0 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a0)));
-        const r1 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a1)));
+        const warp0 = maskRadius(a0 + maskPhase, config.apertureMask, petals);
+        const warp1 = maskRadius(a1 + maskPhase, config.apertureMask, petals);
+        if (warp0 < 0.05 && warp1 < 0.05) continue;
+        const r0 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a0)) * Math.max(warp0, 0.05));
+        const r1 = Math.min(0.98, baseRadius * (1 + scallop * Math.cos(petals * a1)) * Math.max(warp1, 0.05));
         const x0 = cx + Math.cos(a0) * r0;
         const y0 = cy + Math.sin(a0) * r0;
         const x1 = cx + Math.cos(a1) * r1;
         const y1 = cy + Math.sin(a1) * r1;
         const ink = (inkBase + (chord / points) * 0.18) % 1;
-        const runs = clipSegmentToMask(x0, y0, x1, y1, config.apertureMask, petals, config.aperture, maskPhase);
-        for (const [ax, ay, bx, by] of runs) {
-          if (write + INSTANCE_STRIDE > data.length) break;
-          write = writeStroke(data, write, ax, ay, bx, by, ink, config.ribbonWidth);
-        }
+        write = writeStroke(data, write, x0, y0, x1, y1, ink, config.ribbonWidth);
       }
     }
   }
