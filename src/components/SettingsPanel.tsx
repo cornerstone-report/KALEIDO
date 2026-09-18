@@ -62,7 +62,7 @@ export const SettingsPanel = ({ preset, collapsed, onCollapsedChange, onPresetCh
           </select>
         </label>
         <label className="control">Fold order <output>{scene.foldOrder}</output>
-          <input type="range" min="2" max="16" step="1" value={scene.foldOrder} onChange={(event) => updateScene({ foldOrder: number(event) })} />
+          <input type="range" min="2" max="21" step="1" value={scene.foldOrder} onChange={(event) => updateScene({ foldOrder: number(event) })} />
         </label>
         <label className="switch"><input type="checkbox" checked={scene.mirror} onChange={(event) => updateScene({ mirror: event.target.checked })} /> Mirror each fold</label>
         {scene.family === "chord-lattice" ? <>
@@ -123,6 +123,10 @@ export const SettingsPanel = ({ preset, collapsed, onCollapsedChange, onPresetCh
 
       <section>
         <h2>Atmosphere</h2>
+        <label className="control">Field bleed <output>{global.fieldBleed.toFixed(3)}</output>
+          <input type="range" min="0" max="2.618" step="0.001" value={global.fieldBleed} onChange={(event) => updateGlobal({ fieldBleed: number(event) })} />
+        </label>
+        <p className="hint">0 keeps a circle. 1 covers the window. φ ≈ 1.618 bleeds past the frame.</p>
         <label className="control">Palette
           <select value={global.palette} onChange={(event) => updateGlobal({ palette: event.target.value as typeof global.palette })}>
             <option value="aurora">Aurora</option><option value="ember">Ember</option><option value="ultraviolet">Ultraviolet</option><option value="mineral">Mineral</option>
