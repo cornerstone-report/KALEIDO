@@ -54,6 +54,10 @@ export interface DihedralFieldConfig {
   chordsPerLayer: number;
   aperture: number;
   ringWidth: number;
+  /** String-art step around the ring. */
+  chordSkip: number;
+  /** Frozen line-set stamps retained as history. */
+  trailGenerations: number;
 }
 
 export interface AdvectionGrainsConfig {

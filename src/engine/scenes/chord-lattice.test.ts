@@ -5,15 +5,23 @@ import { buildChordLatticeInstances, initializeChordLattice, updateChordLattice 
 describe("Chord Lattice", () => {
   it("initializes deterministically from a seed", () => {
     const config = defaultChordLattice();
-    expect(Array.from(initializeChordLattice(42, config).layers)).toEqual(Array.from(initializeChordLattice(42, config).layers));
+    expect(Array.from(initializeChordLattice(42, config).layers)).toEqual(
+      Array.from(initializeChordLattice(42, config).layers),
+    );
   });
 
-  it("emits one thin chord for every layer, sample, and dihedral copy", () => {
-    const config = { ...defaultChordLattice(), foldOrder: 3, mirror: true, layerCount: 2, chordsPerLayer: 9 };
+  it("emits full-circle string-art plus an outer fan ring", () => {
+    const config = {
+      ...defaultChordLattice(),
+      foldOrder: 8,
+      layerCount: 2,
+      chordsPerLayer: 10,
+      trailGenerations: 1,
+    };
     const state = initializeChordLattice(7, config);
     updateChordLattice(state, 1 / 60, config, 0);
     const instances = buildChordLatticeInstances(state, config);
-    expect(instances.count).toBe(108);
+    expect(instances.count).toBe(2 * 10 + 8 * 11);
     expect(instances.data[5]).toBeCloseTo(config.ribbonWidth);
   });
 });
