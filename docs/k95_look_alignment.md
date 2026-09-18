@@ -4,19 +4,19 @@ Private reference stills show circular string-art annuli, hard palette bands,
 and an optional outer fan ring. They are not liquid ribbons and they are not
 widescreen ellipses.
 
-Implemented in this pass:
+Implemented:
 
 - aspect-correct contain so a unit circle stays circular on a wide canvas
-- full-circle string-art chords with a discrete skip (`chordSkip`)
+- full-circle string-art chords with a discrete integer skip (`chordSkip`)
 - concentric layers with one palette band per layer
-- a generation stamp buffer (`trailGenerations`) instead of a slithering mesh
+- history stamps that change *k*, *N*, and radius instead of cloning a rose
+- incommensurate layer spin rates (1, φ⁻¹, √2−1, …)
+- discrete *k* ← *k* ± 1 on the renewal window
+- palette phase on its own clock (`paletteSpeed`), independent of spin
 - nearest-neighbor palette indexing
-- an outer fan ring driven by fold order (petal / teardrop envelopes)
+- an outer fan ring driven by fold order
 
-`chordSkip` is the string-art step *k*: each of *N* points on a ring connects
-to point *i + k*. Small *k* makes a zigzag crown. Mid *k* fills a scalloped
-annulus. Fold order only fans the outer ring; it does not wedge-copy the
-lattice, which was the source of the oval scribble.
+`k` is never a float. Motion comes from detuned layer phase, stamp topology,
+and occasional integer gear changes.
 
 Do not add Simplex flow fields or Catmull-Rom silk ribbons to this family.
-Those belong to later original scenes, not this grammar.

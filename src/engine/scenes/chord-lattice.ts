@@ -1,16 +1,23 @@
 import type { DihedralFieldConfig } from "../config/types";
 import { createPrng } from "../math/prng";
 
-const LAYER_STRIDE = 4; // phase, skip jitter, ink band, reserved
-const INSTANCE_STRIDE = 6; // x, y, heading, ink, half length, thickness
+const LAYER_STRIDE = 4;
+const INSTANCE_STRIDE = 6;
+const STAMP_STRIDE = 4;
 const TAU = Math.PI * 2;
+
+/** Incommensurate layer clocks. Integers stay on k; time stays a float. */
+export const LAYER_SPIN_RATES = [1, 0.6180339887, 0.41421356237, 1 / 3, 0.57735026919, 0.301699434] as const;
 
 export interface ChordLatticeState {
   layers: Float32Array;
   elapsed: number;
   palettePhase: number;
   injectCarry: number;
-  stampPhases: Float32Array;
+  renewCarry: number;
+  walkSkip: number;
+  walkSign: number;
+  stamps: Float32Array;
 }
 
 export interface ChordLatticeInstances {
@@ -18,11 +25,30 @@ export interface ChordLatticeInstances {
   count: number;
 }
 
-const skipForLayer = (config: DihedralFieldConfig, layer: number): number => {
-  const points = Math.max(3, config.chordsPerLayer);
-  const raw = Math.round(config.chordSkip + layer * 3);
-  return Math.max(1, Math.min(points - 1, raw));
+export const stampSkipDelta = (generation: number): number => {
+  if (generation <= 0) return 0;
+  return [-1, 1, -2, 2, -1, 1][(generation - 1) % 6] ?? 0;
 };
+
+export const stampPointDelta = (generation: number): number => {
+  if (generation <= 0) return 0;
+  return [2, -2, 4, -3, 1, 0][(generation - 1) % 6] ?? 0;
+};
+
+export const stampRadiusScale = (generation: number): number => 1 - generation * 0.014;
+
+const wrapSkip = (skip: number, points: number): number => {
+  const max = Math.max(1, points - 1);
+  let value = ((Math.round(skip) - 1) % max + max) % max + 1;
+  if (value === points) value = 1;
+  return value;
+};
+
+const pointsForStamp = (base: number, generation: number): number =>
+  Math.max(8, Math.min(160, base + stampPointDelta(generation)));
+
+export const skipForLayer = (walkSkip: number, layer: number, points: number): number =>
+  wrapSkip(walkSkip + layer * 3, points);
 
 export const initializeChordLattice = (seed: number, config: DihedralFieldConfig): ChordLatticeState => {
   const random = createPrng(seed ^ 0x4c415454);
@@ -34,25 +60,67 @@ export const initializeChordLattice = (seed: number, config: DihedralFieldConfig
     layers[offset + 2] = config.layerCount <= 1 ? 0 : layer / (config.layerCount - 1);
     layers[offset + 3] = 0;
   }
-  const stamps = Math.max(1, config.trailGenerations);
-  const stampPhases = new Float32Array(stamps);
-  return { layers, elapsed: 0, palettePhase: 0, injectCarry: 0, stampPhases };
+  const generations = Math.max(1, config.trailGenerations);
+  const stamps = new Float32Array(generations * STAMP_STRIDE);
+  for (let generation = 0; generation < generations; generation += 1) {
+    const offset = generation * STAMP_STRIDE;
+    stamps[offset] = generation * 0.17;
+    stamps[offset + 1] = stampSkipDelta(generation);
+    stamps[offset + 2] = stampPointDelta(generation);
+    stamps[offset + 3] = stampRadiusScale(generation);
+  }
+  return {
+    layers,
+    elapsed: 0,
+    palettePhase: 0,
+    injectCarry: 0,
+    renewCarry: 0,
+    walkSkip: config.chordSkip,
+    walkSign: random() < 0.5 ? -1 : 1,
+    stamps,
+  };
 };
 
 export const updateChordLattice = (state: ChordLatticeState, dt: number, config: DihedralFieldConfig, paletteSpeed: number): void => {
   state.elapsed += dt;
   state.palettePhase = (state.palettePhase + dt * paletteSpeed) % 1;
-  const interval = 0.055 + (1 - Math.min(1, config.speed)) * 0.09;
+
+  const injectInterval = 0.055 + (1 - Math.min(1, config.speed)) * 0.09;
   state.injectCarry += dt;
-  while (state.injectCarry >= interval) {
-    state.injectCarry -= interval;
-    for (let index = state.stampPhases.length - 1; index > 0; index -= 1) {
-      state.stampPhases[index] = state.stampPhases[index - 1];
+  while (state.injectCarry >= injectInterval) {
+    state.injectCarry -= injectInterval;
+    for (let index = state.stamps.length / STAMP_STRIDE - 1; index > 0; index -= 1) {
+      const dest = index * STAMP_STRIDE;
+      const src = (index - 1) * STAMP_STRIDE;
+      state.stamps[dest] = state.stamps[src];
+      state.stamps[dest + 1] = state.stamps[src + 1];
+      state.stamps[dest + 2] = state.stamps[src + 2];
+      state.stamps[dest + 3] = state.stamps[src + 3];
     }
-    state.stampPhases[0] += TAU / Math.max(24, config.chordsPerLayer);
+    state.stamps[0] += TAU / Math.max(24, config.chordsPerLayer);
+    state.stamps[1] = 0;
+    state.stamps[2] = 0;
+    state.stamps[3] = 1;
+    for (let generation = 1; generation < state.stamps.length / STAMP_STRIDE; generation += 1) {
+      const offset = generation * STAMP_STRIDE;
+      state.stamps[offset + 1] = stampSkipDelta(generation);
+      state.stamps[offset + 2] = stampPointDelta(generation);
+      state.stamps[offset + 3] = stampRadiusScale(generation);
+    }
   }
+
+  const renewal = Math.max(3, config.transitionSeconds);
+  state.renewCarry += dt;
+  if (state.renewCarry >= renewal) {
+    state.renewCarry -= renewal;
+    const points = Math.max(8, config.chordsPerLayer);
+    state.walkSkip = wrapSkip(state.walkSkip + state.walkSign, points);
+    if (state.walkSkip <= 1 || state.walkSkip >= points - 1) state.walkSign *= -1;
+  }
+
   for (let layer = 0; layer < config.layerCount; layer += 1) {
-    state.layers[layer * LAYER_STRIDE] += dt * config.spin;
+    const rate = LAYER_SPIN_RATES[layer % LAYER_SPIN_RATES.length] ?? 1;
+    state.layers[layer * LAYER_STRIDE] += dt * config.spin * rate;
   }
 };
 
@@ -81,13 +149,13 @@ const writeStroke = (
 
 export const expectedChordLatticeCount = (config: DihedralFieldConfig): number => {
   const generations = Math.max(1, config.trailGenerations);
-  return config.layerCount * config.chordsPerLayer * generations + config.foldOrder * (config.chordsPerLayer + 1);
+  let chords = 0;
+  for (let generation = 0; generation < generations; generation += 1) {
+    chords += config.layerCount * pointsForStamp(config.chordsPerLayer, generation);
+  }
+  return chords + config.foldOrder * (config.chordsPerLayer + 1);
 };
 
-/**
- * Full-circle string-art per radial layer, plus an outer fan ring.
- * Geometry is circular in unit space; the renderer applies aspect contain.
- */
 export const buildChordLatticeInstances = (
   state: ChordLatticeState,
   config: DihedralFieldConfig,
@@ -97,19 +165,21 @@ export const buildChordLatticeInstances = (
   const total = expectedChordLatticeCount(config);
   const data = target && target.length >= total * INSTANCE_STRIDE ? target : new Float32Array(total * INSTANCE_STRIDE);
   let write = 0;
-  const spin = state.elapsed * config.spin;
+  const fanPhase = state.layers[0] ?? 0;
 
   for (let generation = 0; generation < generations; generation += 1) {
-    const stamp = state.stampPhases[Math.min(generation, state.stampPhases.length - 1)] ?? 0;
-    const generationShift = generation * (TAU / Math.max(8, config.chordsPerLayer));
+    const stampOffset = Math.min(generation, state.stamps.length / STAMP_STRIDE - 1) * STAMP_STRIDE;
+    const stampPhase = state.stamps[stampOffset] ?? 0;
+    const skipDelta = state.stamps[stampOffset + 1] ?? stampSkipDelta(generation);
+    const radiusScale = state.stamps[stampOffset + 3] ?? stampRadiusScale(generation);
+    const points = pointsForStamp(config.chordsPerLayer, generation);
     for (let layer = 0; layer < config.layerCount; layer += 1) {
       const layerOffset = layer * LAYER_STRIDE;
-      const points = Math.max(3, config.chordsPerLayer);
-      const skip = skipForLayer(config, layer);
+      const skip = wrapSkip(skipForLayer(state.walkSkip, layer, points) + skipDelta, points);
       const inner = config.aperture + config.ringWidth * (layer / Math.max(1, config.layerCount));
       const outer = config.aperture + config.ringWidth * ((layer + 1) / Math.max(1, config.layerCount));
-      const radius = (inner + outer) * 0.5;
-      const phase = state.layers[layerOffset] + stamp + generationShift + spin;
+      const radius = (inner + outer) * 0.5 * radiusScale;
+      const phase = state.layers[layerOffset] + stampPhase;
       const ink = (state.layers[layerOffset + 2] + state.palettePhase) % 1;
       for (let chord = 0; chord < points; chord += 1) {
         const a0 = phase + (chord / points) * TAU;
@@ -125,7 +195,7 @@ export const buildChordLatticeInstances = (
   const hubRadius = Math.max(config.aperture + config.ringWidth * 0.72, fanRadius * 0.74);
   const fanCount = config.chordsPerLayer + 1;
   for (let fold = 0; fold < config.foldOrder; fold += 1) {
-    const hubAngle = spin + (fold / config.foldOrder) * TAU;
+    const hubAngle = fanPhase + (fold / config.foldOrder) * TAU;
     const [hx, hy] = polar(fanRadius, hubAngle);
     const spread = TAU / config.foldOrder;
     const ink = (0.82 + state.palettePhase) % 1;
