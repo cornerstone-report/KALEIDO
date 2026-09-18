@@ -4,7 +4,7 @@ import { clampDihedral, normalizePreset } from "./validate";
 describe("preset validation", () => {
   it("clamps public dihedral controls", () => {
     expect(clampDihedral({ foldOrder: 99, pathCount: -1, ribbonWidth: 3 })).toMatchObject({
-      foldOrder: 16,
+      foldOrder: 21,
       pathCount: 2,
       ribbonWidth: 0.02,
     });
