@@ -1,28 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { clipSegmentToMask, pointInsideMask } from "./aperture-mask";
+import { maskRadius } from "./aperture-mask";
 
 describe("aperture masks", () => {
-  it("keeps the open ring unclipped", () => {
-    expect(pointInsideMask(0.4, 0, "string", 8, 0.2, 0)).toBe(true);
-    expect(clipSegmentToMask(-0.4, 0, 0.4, 0, "string", 8, 0.2, 0)).toHaveLength(1);
+  it("leaves the open ring at full radius", () => {
+    expect(maskRadius(0, "string", 8)).toBe(1);
+    expect(maskRadius(Math.PI, "string", 8)).toBe(1);
   });
 
-  it("rejects the origin for every shaped mask", () => {
-    expect(pointInsideMask(0, 0, "heart", 8, 0.2, 0)).toBe(false);
-    expect(pointInsideMask(0, 0, "figure8", 8, 0.2, 0)).toBe(false);
-    expect(pointInsideMask(0, 0, "teardrop", 8, 0.2, 0)).toBe(false);
+  it("collapses the figure-8 waist and keeps the lobes", () => {
+    expect(maskRadius(Math.PI / 2, "figure8", 8)).toBeGreaterThan(0.8);
+    expect(maskRadius(0, "figure8", 8)).toBe(0);
   });
 
-  it("accepts a figure-8 lobe and rejects the waist", () => {
-    expect(pointInsideMask(0, 0.45, "figure8", 8, 0.12, 0)).toBe(true);
-    expect(pointInsideMask(0.45, 0, "figure8", 8, 0.12, 0)).toBe(false);
-  });
-
-  it("clips a crossing chord into interior runs", () => {
-    const runs = clipSegmentToMask(-0.8, 0.45, 0.8, 0.45, "figure8", 8, 0.12, 0);
-    expect(runs.length).toBeGreaterThan(0);
-    for (const [x0, y0, x1, y1] of runs) {
-      expect(pointInsideMask((x0 + x1) * 0.5, (y0 + y1) * 0.5, "figure8", 8, 0.12, 0)).toBe(true);
-    }
+  it("keeps wedge sectors and drops the gaps", () => {
+    expect(maskRadius(0.01, "wedge", 8)).toBe(1);
+    expect(maskRadius(Math.PI / 8 + 0.2, "wedge", 8)).toBe(0);
   });
 });
