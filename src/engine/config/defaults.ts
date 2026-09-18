@@ -1,4 +1,5 @@
 import type { DihedralFieldConfig, GlobalConfig, PresetEnvelope } from "./types";
+import { INV_PHI, INV_PHI2 } from "../math/phi";
 
 export const defaultGlobalConfig = (): GlobalConfig => ({
   palette: "aurora",
@@ -6,6 +7,7 @@ export const defaultGlobalConfig = (): GlobalConfig => ({
   paletteBands: 8,
   background: [0.025, 0.027, 0.055],
   inkIntensity: 0.72,
+  fieldBleed: 0,
   feedback: { enabled: true, decayPerSecond: 1.15, smear: 0 },
   evolution: { enabled: true, speed: 0.16, amount: 0.22 },
   quality: {
@@ -30,23 +32,22 @@ export const defaultDihedralField = (): DihedralFieldConfig => ({
   ribbonWidth: 0.0035,
   layerCount: 3,
   chordsPerLayer: 96,
-  aperture: 0.34,
-  ringWidth: 0.42,
+  aperture: INV_PHI2,
+  ringWidth: INV_PHI,
   chordSkip: 11,
   trailGenerations: 6,
 });
 
-/** Hairline annular string-art aligned to the K95 still grammar. */
 export const defaultChordLattice = (): DihedralFieldConfig => ({
   ...defaultDihedralField(),
   family: "chord-lattice",
-  foldOrder: 16,
+  foldOrder: 13,
   mirror: false,
   layerCount: 3,
-  chordsPerLayer: 96,
-  aperture: 0.34,
-  ringWidth: 0.44,
-  chordSkip: 11,
+  chordsPerLayer: 89,
+  aperture: INV_PHI2,
+  ringWidth: INV_PHI,
+  chordSkip: 13,
   trailGenerations: 5,
   speed: 0.07,
   spin: 0.045,
@@ -65,6 +66,7 @@ export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
     inkIntensity: 0.92,
     paletteBands: 5,
     paletteSpeed: 0.04,
+    fieldBleed: 0,
     evolution: { enabled: false, speed: 0.1, amount: 0.12 },
     feedback: { enabled: false, decayPerSecond: 4.5, smear: 0 },
   },

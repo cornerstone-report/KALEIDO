@@ -1,5 +1,6 @@
 import { createDefaultPreset, defaultDihedralField, defaultGlobalConfig } from "./defaults";
 import type { DihedralFieldConfig, GlobalConfig, PresetEnvelope } from "./types";
+import { PHI } from "../math/phi";
 
 const finite = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -11,7 +12,7 @@ export const clampDihedral = (value: Partial<DihedralFieldConfig>): DihedralFiel
   const fallback = defaultDihedralField();
   return {
     family: value.family === "chord-lattice" ? "chord-lattice" : "line-weave",
-    foldOrder: Math.round(clamp(value.foldOrder, 2, 16, fallback.foldOrder)),
+    foldOrder: Math.round(clamp(value.foldOrder, 2, 21, fallback.foldOrder)),
     mirror: typeof value.mirror === "boolean" ? value.mirror : fallback.mirror,
     pathCount: Math.round(clamp(value.pathCount, 2, 80, fallback.pathCount)),
     segmentsPerPath: Math.round(clamp(value.segmentsPerPath, 2, 32, fallback.segmentsPerPath)),
@@ -48,6 +49,7 @@ export const clampGlobal = (value: Partial<GlobalConfig>): GlobalConfig => {
       clamp(background[2], 0, 1, fallback.background[2]),
     ],
     inkIntensity: clamp(value.inkIntensity, 0, 1, fallback.inkIntensity),
+    fieldBleed: clamp(value.fieldBleed, 0, PHI * PHI, fallback.fieldBleed),
     feedback: {
       enabled: typeof feedback.enabled === "boolean" ? feedback.enabled : fallback.feedback.enabled,
       decayPerSecond: clamp(feedback.decayPerSecond, 0, 8, fallback.feedback.decayPerSecond),
