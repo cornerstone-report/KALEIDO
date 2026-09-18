@@ -66,6 +66,15 @@ export const SettingsPanel = ({ preset, collapsed, onCollapsedChange, onPresetCh
         </label>
         <label className="switch"><input type="checkbox" checked={scene.mirror} onChange={(event) => updateScene({ mirror: event.target.checked })} /> Mirror each fold</label>
         {scene.family === "chord-lattice" ? <>
+          <label className="control">Aperture mask
+            <select value={scene.apertureMask} onChange={(event) => updateScene({ apertureMask: event.target.value as typeof scene.apertureMask })}>
+              <option value="string">Open ring</option>
+              <option value="wedge">Wedge</option>
+              <option value="heart">Heart</option>
+              <option value="figure8">Figure-8</option>
+              <option value="teardrop">Tear</option>
+            </select>
+          </label>
           <label className="control">Radial layers <output>{scene.layerCount}</output>
             <input type="range" min="1" max="6" step="1" value={scene.layerCount} onChange={(event) => updateScene({ layerCount: number(event) })} />
           </label>
