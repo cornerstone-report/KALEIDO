@@ -1,6 +1,7 @@
 import type { DihedralFieldConfig } from "../config/types";
 import { createPrng } from "../math/prng";
 import { INV_PHI } from "../math/phi";
+import { clipSegmentToMask } from "../math/aperture-mask";
 
 const LAYER_STRIDE = 4;
 const INSTANCE_STRIDE = 6;
@@ -170,7 +171,7 @@ export const buildChordLatticeInstances = (
   target?: Float32Array<ArrayBufferLike>,
 ): ChordLatticeInstances => {
   const generations = Math.max(1, config.trailGenerations);
-  const total = expectedChordLatticeCount(config);
+  const total = expectedChordLatticeCount(config) * 3;
   const data = target && target.length >= total * INSTANCE_STRIDE ? target : new Float32Array(total * INSTANCE_STRIDE);
   let write = 0;
   const petals = Math.max(2, config.foldOrder);
@@ -193,6 +194,7 @@ export const buildChordLatticeInstances = (
       const cy = drift * Math.cos(state.elapsed * rate * 0.31 + layer * 2.3);
       const phase = state.layers[layerOffset] + stampPhase;
       const inkBase = (state.layers[layerOffset + 2] + state.palettePhase + generation * 0.13) % 1;
+      const maskPhase = -state.elapsed * config.spin * 0.55;
       for (let chord = 0; chord < points; chord += 1) {
         const a0 = phase + (chord / points) * TAU;
         const a1 = phase + ((chord + skip) / points) * TAU;
@@ -203,10 +205,14 @@ export const buildChordLatticeInstances = (
         const x1 = cx + Math.cos(a1) * r1;
         const y1 = cy + Math.sin(a1) * r1;
         const ink = (inkBase + (chord / points) * 0.18) % 1;
-        write = writeStroke(data, write, x0, y0, x1, y1, ink, config.ribbonWidth);
+        const runs = clipSegmentToMask(x0, y0, x1, y1, config.apertureMask, petals, config.aperture, maskPhase);
+        for (const [ax, ay, bx, by] of runs) {
+          if (write + INSTANCE_STRIDE > data.length) break;
+          write = writeStroke(data, write, ax, ay, bx, by, ink, config.ribbonWidth);
+        }
       }
     }
   }
 
-  return { data, count: total };
+  return { data, count: write / INSTANCE_STRIDE };
 };
