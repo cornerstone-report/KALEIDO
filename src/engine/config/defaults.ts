@@ -29,26 +29,30 @@ export const defaultDihedralField = (): DihedralFieldConfig => ({
   transitionSeconds: 10,
   ribbonWidth: 0.0035,
   layerCount: 3,
-  chordsPerLayer: 42,
-  aperture: 0.28,
-  ringWidth: 0.5,
+  chordsPerLayer: 72,
+  aperture: 0.34,
+  ringWidth: 0.42,
+  chordSkip: 11,
+  trailGenerations: 6,
 });
 
-/** A clean, hairline-first family based on the observed radial lattice grammar. */
+/** Hairline annular string-art aligned to the K95 still grammar. */
 export const defaultChordLattice = (): DihedralFieldConfig => ({
   ...defaultDihedralField(),
   family: "chord-lattice",
-  foldOrder: 12,
-  mirror: true,
+  foldOrder: 16,
+  mirror: false,
   layerCount: 3,
-  chordsPerLayer: 44,
-  aperture: 0.31,
-  ringWidth: 0.48,
-  speed: 0.11,
-  spin: 0.025,
-  curvature: 0.62,
+  chordsPerLayer: 72,
+  aperture: 0.34,
+  ringWidth: 0.44,
+  chordSkip: 11,
+  trailGenerations: 5,
+  speed: 0.07,
+  spin: 0.01,
+  curvature: 0.2,
   transitionSeconds: 16,
-  ribbonWidth: 0.00115,
+  ribbonWidth: 0.00105,
 });
 
 export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
@@ -58,8 +62,10 @@ export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
   global: {
     ...defaultGlobalConfig(),
     background: [0, 0, 0],
-    inkIntensity: 0.9,
-    paletteBands: 4,
+    inkIntensity: 0.92,
+    paletteBands: 5,
+    paletteSpeed: 0.03,
+    evolution: { enabled: false, speed: 0.1, amount: 0.12 },
     feedback: { enabled: false, decayPerSecond: 4.5, smear: 0 },
   },
   scene: defaultChordLattice(),
