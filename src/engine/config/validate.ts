@@ -1,5 +1,6 @@
 import { createDefaultPreset, defaultDihedralField, defaultGlobalConfig } from "./defaults";
 import type { DihedralFieldConfig, GlobalConfig, PresetEnvelope } from "./types";
+import { isApertureMask } from "../math/aperture-mask";
 import { PHI } from "../math/phi";
 
 const finite = (value: unknown, fallback: number): number =>
@@ -28,6 +29,7 @@ export const clampDihedral = (value: Partial<DihedralFieldConfig>): DihedralFiel
     ringWidth: clamp(value.ringWidth, 0.12, 0.82, fallback.ringWidth),
     chordSkip: Math.round(clamp(value.chordSkip, 1, 64, fallback.chordSkip)),
     trailGenerations: Math.round(clamp(value.trailGenerations, 1, 12, fallback.trailGenerations)),
+    apertureMask: isApertureMask(value.apertureMask) ? value.apertureMask : fallback.apertureMask,
   };
 };
 
