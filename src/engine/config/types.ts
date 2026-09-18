@@ -5,9 +5,7 @@ export type VisualFamily = "line-weave" | "chord-lattice";
 
 export interface FeedbackConfig {
   enabled: boolean;
-  /** Exponential fade coefficient in reciprocal seconds. */
   decayPerSecond: number;
-  /** Extra frame-to-frame blur. Kept at zero in the initial renderer. */
   smear: number;
 }
 
@@ -26,18 +24,18 @@ export interface QualityPolicy {
 
 export interface GlobalConfig {
   palette: PaletteId;
-  /** Palette-ring advance in cycles per second, independent of geometry. */
   paletteSpeed: number;
   paletteBands: number;
   background: readonly [number, number, number];
   inkIntensity: number;
+  /** 0 = inscribed circle, 1 = cover the viewport, >1 extra bleed (φ ≈ 1.618). */
+  fieldBleed: number;
   feedback: FeedbackConfig;
   evolution: EvolutionConfig;
   quality: QualityPolicy;
 }
 
 export interface DihedralFieldConfig {
-  /** Original visual family; both families share the same dihedral renderer. */
   family: VisualFamily;
   foldOrder: number;
   mirror: boolean;
@@ -49,14 +47,11 @@ export interface DihedralFieldConfig {
   curvature: number;
   transitionSeconds: number;
   ribbonWidth: number;
-  /** Chord Lattice controls. Ignored by Line Weave. */
   layerCount: number;
   chordsPerLayer: number;
   aperture: number;
   ringWidth: number;
-  /** String-art step around the ring. */
   chordSkip: number;
-  /** Frozen line-set stamps retained as history. */
   trailGenerations: number;
 }
 
@@ -84,7 +79,6 @@ export interface SceneConfigMap {
 export interface PresetEnvelope<Id extends SceneId = SceneId> {
   schemaVersion: 1;
   sceneId: Id;
-  /** An unsigned 32-bit deterministic seed. */
   seed: number;
   global: GlobalConfig;
   scene: SceneConfigMap[Id];
