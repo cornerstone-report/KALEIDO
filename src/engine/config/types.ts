@@ -2,6 +2,7 @@ export type SceneId = "dihedral-field" | "advection-grains" | "spline-drift";
 
 export type PaletteId = "aurora" | "ember" | "ultraviolet" | "mineral";
 export type VisualFamily = "line-weave" | "chord-lattice";
+export type ApertureMask = "string" | "wedge" | "heart" | "figure8" | "teardrop";
 
 export interface FeedbackConfig {
   enabled: boolean;
@@ -28,7 +29,6 @@ export interface GlobalConfig {
   paletteBands: number;
   background: readonly [number, number, number];
   inkIntensity: number;
-  /** 0 = inscribed circle, 1 = cover the viewport, >1 extra bleed (φ ≈ 1.618). */
   fieldBleed: number;
   feedback: FeedbackConfig;
   evolution: EvolutionConfig;
@@ -53,6 +53,7 @@ export interface DihedralFieldConfig {
   ringWidth: number;
   chordSkip: number;
   trailGenerations: number;
+  apertureMask: ApertureMask;
 }
 
 export interface AdvectionGrainsConfig {

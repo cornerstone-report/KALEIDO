@@ -36,6 +36,7 @@ export const defaultDihedralField = (): DihedralFieldConfig => ({
   ringWidth: INV_PHI,
   chordSkip: 11,
   trailGenerations: 6,
+  apertureMask: "string",
 });
 
 export const defaultChordLattice = (): DihedralFieldConfig => ({
@@ -54,6 +55,7 @@ export const defaultChordLattice = (): DihedralFieldConfig => ({
   curvature: 0.2,
   transitionSeconds: 5,
   ribbonWidth: 0.00115,
+  apertureMask: "figure8",
 });
 
 export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
