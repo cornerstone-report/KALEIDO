@@ -49,9 +49,9 @@ export const defaultChordLattice = (): DihedralFieldConfig => ({
   chordSkip: 11,
   trailGenerations: 5,
   speed: 0.07,
-  spin: 0.01,
+  spin: 0.045,
   curvature: 0.2,
-  transitionSeconds: 16,
+  transitionSeconds: 8,
   ribbonWidth: 0.00105,
 });
 
@@ -64,7 +64,7 @@ export const createDefaultPreset = (): PresetEnvelope<"dihedral-field"> => ({
     background: [0, 0, 0],
     inkIntensity: 0.92,
     paletteBands: 5,
-    paletteSpeed: 0.03,
+    paletteSpeed: 0.04,
     evolution: { enabled: false, speed: 0.1, amount: 0.12 },
     feedback: { enabled: false, decayPerSecond: 4.5, smear: 0 },
   },
